@@ -126,8 +126,7 @@ def require_appkey(view_function):
 def random_image(cat):
     names = os.listdir(os.path.join('/var/www/nekoapi/' + cat))
     random.shuffle(names)
-    img_url = 'https://cdn.nekos.life/' + os.path.join(cat, random.choice(names))
-    return img_url
+    return 'https://cdn.nekos.life/' + os.path.join(cat, random.choice(names))
 
 
 def random_ball():
@@ -216,12 +215,22 @@ def list_routes():
     import urllib.parse
     output = []
     for rule in application.url_map.iter_rules():
-        options = {}
-        for arg in rule.arguments:
-            options[arg] = "[{0}]".format(arg).replace("[cat]",
-                                                       str([name for name in os.listdir('/var/www/nekoapi/') if
-                                                            name != "old"]).replace("[", "<").replace("]", ">")
-                                                       )
+        options = {
+            arg: "[{0}]".format(arg).replace(
+                "[cat]",
+                str(
+                    [
+                        name
+                        for name in os.listdir('/var/www/nekoapi/')
+                        if name != "old"
+                    ]
+                )
+                .replace("[", "<")
+                .replace("]", ">"),
+            )
+            for arg in rule.arguments
+        }
+
         methods = ','.join(rule.methods)
         url = url_for(rule.endpoint, **options)
         if "v2" in str(url):
@@ -249,30 +258,29 @@ def get_neko_response():
         input_msg = request.headers.get('text')
         return jsonify(response=str(neko_bot.get_response(input_msg)))
 
-    if request.args.get('text'):
-        if len(request.args.get('text')) > 200 or len(request.args.get('text')) < 1:
-            return jsonify(msg="oopsie whoopsie you made a fucky wucky, no text or text over 200")
-
-        if request.args.get('owo') and request.args.get('owo').lower() == "true":
-            input_msg = request.args.get('text')
-            return jsonify(response=str(get_owo(str(neko_bot.get_response(input_msg)))))
-
-        input_msg = request.args.get('text')
-        return jsonify(response=str(neko_bot.get_response(input_msg)))
-
-    else:
+    if not request.args.get('text'):
         return jsonify(msg="oopsie whoopsie you made a fucky wucky, no text or text over 200")
+
+    if len(request.args.get('text')) > 200 or len(request.args.get('text')) < 1:
+        return jsonify(msg="oopsie whoopsie you made a fucky wucky, no text or text over 200")
+
+    if request.args.get('owo') and request.args.get('owo').lower() == "true":
+        input_msg = request.args.get('text')
+        return jsonify(response=str(get_owo(str(neko_bot.get_response(input_msg)))))
+
+    input_msg = request.args.get('text')
+    return jsonify(response=str(neko_bot.get_response(input_msg)))
 
 
 @application.route('/api/v2/owoify')
 def owoify():
-    if request.args.get('text'):
-        if len(request.args.get('text')) > 200 or len(request.args.get('text')) < 1:
-            return jsonify(msg="oopsie whoopsie you made a fucky wucky, no text or text over 200")
-
-        return jsonify(owo=str(get_owo(request.args.get('text'))))
-    else:
+    if not request.args.get('text'):
         return jsonify(msg="oopsie whoopsie you made a fucky wucky, no text or text over 200")
+
+    if len(request.args.get('text')) > 200 or len(request.args.get('text')) < 1:
+        return jsonify(msg="oopsie whoopsie you made a fucky wucky, no text or text over 200")
+
+    return jsonify(owo=str(get_owo(request.args.get('text'))))
 
 
 @application.route('/api/v2/img/<string:cat>')
@@ -307,73 +315,69 @@ def _c():
 # oauth/upload
 @application.route('/upload/', methods=['GET', 'POST'])
 def upload():
-    if 'userid' in session:
-        if session['userid'] in IDS:
-            if request.method == 'POST':
-                if 'file[]' not in request.files:
-                    flash('No file part')
-                    return redirect(request.url)
-                files = request.files.getlist("file[]")
-                print("owo")
-                for file in files:
-                    print(file)
-                    if not allowed_file(file.filename):
-                        flash(u'bad file', 'error')
-                    if file.filename == '':
-                        flash('No selected file')
-                        return redirect(request.url)
-                    if file and allowed_file(file.filename):
-                        n, l, k, h, p, c, li = "neko", "lewd", "kiss", "hug", "pat", "cuddle", "lizard"
-                        option = request.form['type']
-                        print(option)
-                        d = ""
-                        if option == n:
-                            d = NEKO_UPLOAD_FOLDER
-                        if option == l:
-                            d = LEWD_UPLOAD_FOLDER
-                        if option == k:
-                            d = KISS_UPLOAD_FOLDER
-                        if option == h:
-                            d = HUG_UPLOAD_FOLDER
-                        if option == p:
-                            d = PAT_UPLOAD_FOLDER
-                        if option == c:
-                            d = CUDDLE_UPLOAD_FOLDER
-                        if option == li:
-                            d = LIZARD_UPLOAD_FOLDER
-                        filename = file.filename
-                        print(d)
-                        destination = "".join([d, filename])
-                        print("Accept incoming file:", filename)
-                        print(destination)
-                        file.save(destination)
-                        flash(u'uploaded', 'success')
-                return redirect(url_for('rel'))
-            random.shuffle(cats)
-            ca = random.choice(cats)
-            return render_template('upload.html', cat=ca)
-
-        else:
-            return "401"
-    else:
+    if 'userid' not in session:
         return redirect(url_for('login'))
+    if session['userid'] not in IDS:
+        return "401"
+    if request.method == 'POST':
+        if 'file[]' not in request.files:
+            flash('No file part')
+            return redirect(request.url)
+        files = request.files.getlist("file[]")
+        print("owo")
+        for file in files:
+            print(file)
+            if not allowed_file(file.filename):
+                flash(u'bad file', 'error')
+            if file.filename == '':
+                flash('No selected file')
+                return redirect(request.url)
+            if file and allowed_file(file.filename):
+                n, l, k, h, p, c, li = "neko", "lewd", "kiss", "hug", "pat", "cuddle", "lizard"
+                option = request.form['type']
+                print(option)
+                d = ""
+                if option == n:
+                    d = NEKO_UPLOAD_FOLDER
+                if option == l:
+                    d = LEWD_UPLOAD_FOLDER
+                if option == k:
+                    d = KISS_UPLOAD_FOLDER
+                if option == h:
+                    d = HUG_UPLOAD_FOLDER
+                if option == p:
+                    d = PAT_UPLOAD_FOLDER
+                if option == c:
+                    d = CUDDLE_UPLOAD_FOLDER
+                if option == li:
+                    d = LIZARD_UPLOAD_FOLDER
+                filename = file.filename
+                print(d)
+                destination = "".join([d, filename])
+                print("Accept incoming file:", filename)
+                print(destination)
+                file.save(destination)
+                flash(u'uploaded', 'success')
+        return redirect(url_for('rel'))
+    random.shuffle(cats)
+    ca = random.choice(cats)
+    return render_template('upload.html', cat=ca)
 
 
 @application.route('/release/')
 def rel():
-    if 'userid' in session:
-        if session['userid'] in IDS:
-            n, l, k, h, p, c, li = os.listdir(NEKO_UPLOAD_FOLDER), os.listdir(LEWD_UPLOAD_FOLDER), os.listdir(
-                KISS_UPLOAD_FOLDER), os.listdir(HUG_UPLOAD_FOLDER), os.listdir(PAT_UPLOAD_FOLDER), os.listdir(
-                CUDDLE_UPLOAD_FOLDER), os.listdir(LIZARD_UPLOAD_FOLDER)
-            random.shuffle(cats)
-            ca = random.choice(cats)
-            return render_template('list.html', nekos=n, lewds=l, kisses=k, hugs=h, pats=p, cuddles=c, lizards=li,
-                                   cat=ca)
-        else:
-            return "401"
-    else:
+    if 'userid' not in session:
         return redirect(url_for('login'))
+
+    if session['userid'] not in IDS:
+        return "401"
+    n, l, k, h, p, c, li = os.listdir(NEKO_UPLOAD_FOLDER), os.listdir(LEWD_UPLOAD_FOLDER), os.listdir(
+        KISS_UPLOAD_FOLDER), os.listdir(HUG_UPLOAD_FOLDER), os.listdir(PAT_UPLOAD_FOLDER), os.listdir(
+        CUDDLE_UPLOAD_FOLDER), os.listdir(LIZARD_UPLOAD_FOLDER)
+    random.shuffle(cats)
+    ca = random.choice(cats)
+    return render_template('list.html', nekos=n, lewds=l, kisses=k, hugs=h, pats=p, cuddles=c, lizards=li,
+                           cat=ca)
 
 
 @application.route('/login/')
@@ -404,9 +408,8 @@ def callback():
     session['userid'] = userinfo['id']
     if session['userid'] in IDS:
         return redirect(url_for('.upload'))
-    else:
-        session.clear()
-        return "401"
+    session.clear()
+    return "401"
 
 
 @application.route('/logout/')
